@@ -174,7 +174,7 @@ mqtt.xmlファイルの中身は次の通り定義します。Adressタグの中
 <TcConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2015/12/TcConfig">
 <RemoteConnections>
-    <Mqtt Unidirectional="true">
+    <Mqtt>
         <Address Port="1883">ここに本システムが稼働するコンピュータのIPアドレスを設定</Address>
         <Topic>AdsOverMqtt</Topic>
     </Mqtt>

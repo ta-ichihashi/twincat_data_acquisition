@@ -25,22 +25,15 @@ RUN --mount=type=secret,id=apt \
     libadscomm \
     supervisor \
     tc31-xar-um \
-    cmake \
-    g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# As an example, copy basic TwinCAT runtime configurations files
-ARG TC3_DIR=/etc/TwinCAT/3.1
-#COPY TwinCAT/StaticRoutes.xml $TC3_DIR/Target/
-
+# Install Python environment and dependencies by uv
 WORKDIR /app
 ADD ./app /app
-
-
 RUN uv sync --directory /app --frozen --no-dev
 
+# Install supervisord configuration
 RUN mkdir -p /var/log/supervisor
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
 
 CMD [ "/usr/bin/supervisord"]

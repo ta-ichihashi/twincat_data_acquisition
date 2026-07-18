@@ -1,5 +1,32 @@
 import pyads
 
+xts_mover_controller_scope_variable = (
+    ("ActHwPos", pyads.PLCTYPE_LREAL, 1),
+    ("ActPos", pyads.PLCTYPE_LREAL, 1),
+    ("ActPosError", pyads.PLCTYPE_LREAL, 1),
+    ("ActVelo", pyads.PLCTYPE_LREAL, 1),
+    ("ActVeloError", pyads.PLCTYPE_LREAL, 1),
+    ("Control", pyads.PLCTYPE_UINT, 1),
+    ("SetAccItp", pyads.PLCTYPE_LREAL, 1),
+    ("SetCurr", pyads.PLCTYPE_LREAL, 1),
+    ("SetForce", pyads.PLCTYPE_LREAL, 1),
+    ("SetJerkItp", pyads.PLCTYPE_LREAL, 1),
+    ("SetPosItp", pyads.PLCTYPE_LREAL, 1),
+    ("SetVeloItp", pyads.PLCTYPE_LREAL, 1),
+    ("Status", pyads.PLCTYPE_UINT, 1)
+)
+
+tc_mc3_actdata = (
+    ('ActDCTimeStamp', pyads.PLCTYPE_ULINT, 1),
+    ("ActPartPosition", pyads.PLCTYPE_LREAL, 1),
+    ("ActVelocity", pyads.PLCTYPE_LREAL, 1),
+    ("ActFollowingError", pyads.PLCTYPE_LREAL, 1),
+    ("ActForce", pyads.PLCTYPE_LREAL, 1),
+    ("ActPartObjectid", pyads.PLCTYPE_UDINT, 1),
+    ("ActOperationMode", pyads.PLCTYPE_UDINT, 1),
+    ("Status", pyads.PLCTYPE_UINT, 1)
+)
+
 
 # Alarm event framework
 alarm_structure = (

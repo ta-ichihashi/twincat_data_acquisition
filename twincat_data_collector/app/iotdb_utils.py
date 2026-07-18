@@ -3,9 +3,10 @@ from iotdb.Session import Session
 from iotdb.SessionPool import PoolConfig, SessionPool
 from iotdb.utils.IoTDBConstants import TSDataType, TSEncoding, Compressor
 from iotdb.utils.NumpyTablet import ColumnType, NumpyTablet
-from iotdb.utils.exception import StatementExecutionException
+from iotdb.utils.exception import StatementExecutionException, IoTDBConnectionException
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Tuple, Union, TypeVar
+from abc import ABC, abstractmethod
 from enum import Enum
 from collections import deque
 import time
@@ -60,10 +61,12 @@ class IoTDBClientSession:
             self.session = None
 
 
+T = TypeVar('T', bound=Union[Tuple[Tuple], pyads.PLCTYPE_BOOL, pyads.PLCTYPE_BYTE, pyads.PLCTYPE_DWORD, pyads.PLCTYPE_INT, pyads.PLCTYPE_DINT, pyads.PLCTYPE_LINT, pyads.PLCTYPE_UDINT, pyads.PLCTYPE_ULINT, pyads.PLCTYPE_REAL, pyads.PLCTYPE_LREAL, pyads.PLCTYPE_STRING, pyads.PLCTYPE_WSTRING])
+
 @dataclass
-class IoTTimeSeries:
+class IoTTimeSeriesBase(ABC):
     session_manager : IoTDBClientSession
-    plc_data_model : Tuple[Tuple]
+    plc_data_model : T
     storage_group_name : str
     time_series_name : str
     chunk_size : int = field(default=5)
@@ -72,45 +75,22 @@ class IoTTimeSeries:
     def __post_init__(self):
         self.create_storage_group()
         self.measurements_list = list()
-        self.ts_type_dict = dict()
-        
-    def session(func):
+    
+    @classmethod
+    def session(cls, func):
         def wrapper(self, *args, **kwargs):
-            session = self.session_manager.session_pool.get_session()
-            func(self,  session, *args, **kwargs)
-            self.session_manager.session_pool.put_back(session)
+            try:
+                session = self.session_manager.session_pool.get_session()
+                func(self,  session, *args, **kwargs)
+                self.session_manager.session_pool.put_back(session)
+            except IoTDBConnectionException as e:
+                print(f"Connection failed for {self.session_manager.host}:{self.session_manager.port}: {e}")
+                exit(1)
         return wrapper
 
-
-    @session
+    @abstractmethod
     def create_storage_group(self, session : Session):
-        try:
-            session.set_storage_group(self.storage_group_name)
-        except StatementExecutionException as e:
-            pass
-        except IoTDBConnectionException as e:
-            print(f"Connection fail {self.session_manager.host}, {self.session_manager.port}")
-
-
-    @session
-    def create_aligned_time_series(self, session : Session, tag_list : tuple = None):
-        if len(self.plc_data_model) == 0:
-            return
-        try:
-            transported = [list(row) for row in zip(*self.plc_data_model)]
-            self.ts_type_dict = {
-                transported[0][i] : ctsDataType[v.__name__].value for i, v in enumerate(transported[1])
-            }
-            self.measurements_list = [i for i in transported[0] if i != "timestamp"]
-            ts_type_list = [self.ts_type_dict[k] for k in self.measurements_list]
-            ts_path_list = [f"{self.storage_group_name}.{self.time_series_name}.{item}" for item in transported[0]]
-            encoding_lst = [TSEncoding.PLAIN for _ in range(len(ts_path_list))]
-            compressor_lst = [Compressor.SNAPPY for _ in range(len(ts_path_list))]
-            session.create_multi_time_series(
-                ts_path_list, ts_type_list, encoding_lst, compressor_lst
-            )
-        except StatementExecutionException as e:
-            pass 
+        pass
 
 
     def write_data(self, data) -> bool:
@@ -121,11 +101,62 @@ class IoTTimeSeries:
         else:
             return False 
 
+    @abstractmethod
+    def insert_data(self, session : Session):
+        pass
 
-    @session
+    def q_size(self):
+        return len(self.queue)
+
+
+class MultiTimeSeries(IoTTimeSeriesBase):
+    
+    def __post_init__(self):
+        super().__post_init__()
+        if not isinstance(self.plc_data_model, tuple) or len(self.plc_data_model) <= 1 or not isinstance(self.plc_data_model[0], tuple):
+            raise ValueError("plc_data_model must be a tuple of tuples for MultiTimeSeries")
+        
+        self.ts_type_dict = dict()
+
+    @IoTTimeSeriesBase.session
+    def create_storage_group(self, session : Session):
+        try:
+            session.set_storage_group(self.storage_group_name)
+        except StatementExecutionException as e:
+            pass
+        except IoTDBConnectionException as e:
+            print(f"Connection fail {self.session_manager.host}, {self.session_manager.port}")
+
+    
+    @IoTTimeSeriesBase.session
+    def create_aligned_time_series(self, session : Session):
+        try:
+            if isinstance(self.plc_data_model, tuple) and len(self.plc_data_model) > 1 and isinstance(self.plc_data_model[0], tuple):
+                transported = [list(row) for row in zip(*self.plc_data_model)]
+                self.ts_type_dict = {
+                    transported[0][i] : ctsDataType[v.__name__].value for i, v in enumerate(transported[1])
+                }
+                self.measurements_list = [i for i in transported[0] if i != "timestamp"]
+                ts_type_list = [self.ts_type_dict[k] for k in self.measurements_list]
+                ts_path_list = [f"{self.storage_group_name}.{self.time_series_name}.{item}" for item in transported[0]]
+                encoding_lst = [TSEncoding.PLAIN for _ in range(len(ts_path_list))]
+                compressor_lst = [Compressor.SNAPPY for _ in range(len(ts_path_list))]
+                session.create_multi_time_series(
+                    ts_path_list, ts_type_list, encoding_lst, compressor_lst
+                )
+            else:
+                raise ValueError("plc_data_model must be a tuple of tuples for MultiTimeSeries")
+            print(f"Created aligned time series: {self.storage_group_name}.{self.time_series_name} with measurements {self.measurements_list}")
+        except StatementExecutionException as e:
+            pass
+    
+    @IoTTimeSeriesBase.session
     def insert_data(self, session : Session):
         try:
-            chunk = list(self.queue) 
+            if isinstance(self.plc_data_model, tuple) and len(self.plc_data_model) > 1 and isinstance(self.plc_data_model[0], tuple):
+                chunk = list(self.queue) 
+            else:
+                raise ValueError("plc_data_model must be a tuple of tuples for MultiTimeSeries")
             times_list = np.array([int(r["timestamp"].timestamp() * 10**6) for r in chunk],  TSDataType.INT64.np_dtype())
             measurements_list = [(i, v) for i, v in enumerate(self.measurements_list) if v in chunk[0]]
             values_list = [
@@ -143,9 +174,65 @@ class IoTTimeSeries:
             session.insert_tablet(tablet)
         except Exception as e:
             pprint(chunk)
-            pprint([self.ts_type_dict[v] for i, v in measurements_list])
             raise(e)
+        
 
-    def q_size(self):
-        return len(self.queue)
+class SingleTimeSeries(IoTTimeSeriesBase):
 
+    def __post_init__(self):
+        super().__post_init__()
+        if isinstance(self.plc_data_model, tuple) and len(self.plc_data_model) > 1 and isinstance(self.plc_data_model[0], tuple):
+            raise ValueError("plc_data_model must be a single type for SingleTimeSeries")
+        self.ts_type_dict = {self.time_series_name : ctsDataType[self.plc_data_model.__name__].value}
+        self.measurements_list = [self.time_series_name]
+
+
+    @IoTTimeSeriesBase.session
+    def create_storage_group(self, session : Session):
+        try:
+            session.set_storage_group(self.storage_group_name)
+        except StatementExecutionException as e:
+            pass
+        except IoTDBConnectionException as e:
+            print(f"Connection fail {self.session_manager.host}, {self.session_manager.port}")
+
+    @IoTTimeSeriesBase.session
+    def create_aligned_time_series(self, session : Session):
+        pass
+        try:
+            if isinstance(self.plc_data_model, tuple) and len(self.plc_data_model) > 1 and isinstance(self.plc_data_model[0], tuple):
+                raise ValueError("plc_data_model must be a single type for SingleTimeSeries")
+            else:
+                session.create_time_series(
+                    f"{self.storage_group_name}.{self.time_series_name}", 
+                    ctsDataType[self.plc_data_model.__name__].value, 
+                    TSEncoding.PLAIN, 
+                    Compressor.SNAPPY
+                )
+            print(f"Created aligned time series: {self.storage_group_name}.{self.time_series_name}")
+        except StatementExecutionException as e:
+            pass
+
+    @IoTTimeSeriesBase.session
+    def insert_data(self, session : Session):
+        try:
+            if isinstance(self.plc_data_model, tuple) and len(self.plc_data_model) > 1 and isinstance(self.plc_data_model[0], tuple):
+                raise ValueError("plc_data_model must be a single type for SingleTimeSeries")
+            else:
+                chunk = list(self.queue)
+            times_list = np.array([int(r["timestamp"].timestamp() * 10**6) for r in chunk],  TSDataType.INT64.np_dtype())
+            keys = [k for k in chunk[0] if k != "timestamp"]
+            values_list = np.array([r[keys[0]] for r in chunk], self.ts_type_dict[self.time_series_name].np_dtype())
+            self.queue.clear()
+            tablet = NumpyTablet(
+                f"{self.storage_group_name}",
+                [self.time_series_name],
+                [self.ts_type_dict[self.time_series_name]],
+                [values_list],
+                times_list
+            )
+            print(f"Tablet: {self.ts_type_dict}, {self.measurements_list}, {len(times_list)}, {values_list}")
+            session.insert_tablet(tablet)
+        except Exception as e:
+            pprint(chunk)
+            raise(e)

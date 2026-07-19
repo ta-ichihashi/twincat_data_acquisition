@@ -3,10 +3,13 @@ from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo
 from datetime import datetime
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, TypeVar
 from ads_communication import AdsPortConnection
 from iotdb_utils import IoTTimeSeriesBase, IoTDBClientSession
 import asyncio
+
+T = TypeVar('T', bound=Union[Tuple[Tuple], pyads.PLCTYPE_BOOL, pyads.PLCTYPE_BYTE, pyads.PLCTYPE_DWORD, pyads.PLCTYPE_INT, pyads.PLCTYPE_DINT, pyads.PLCTYPE_LINT, pyads.PLCTYPE_UDINT, pyads.PLCTYPE_ULINT, pyads.PLCTYPE_REAL, pyads.PLCTYPE_LREAL, pyads.PLCTYPE_STRING, pyads.PLCTYPE_WSTRING])
+
 
 @dataclass
 class IEventTask(ABC):
@@ -20,7 +23,7 @@ class BaseEventTask(IEventTask):
     """ADS Notification event handler abstruct class"""
     subscriber : AdsPortConnection
     queue : asyncio.Queue = field(default=None)
-    mapping_model : Union[tuple, pyads.PLCTYPE] = field(default=None)
+    mapping_model : T = field(default=None)
     watch_symbol : str = field(default_factory=str)
     reconnect : bool = field(default_factory=bool)
 

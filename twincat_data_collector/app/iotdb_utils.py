@@ -155,6 +155,7 @@ class MultiTimeSeries(IoTTimeSeriesBase):
         try:
             if isinstance(self.plc_data_model, tuple) and len(self.plc_data_model) > 1 and isinstance(self.plc_data_model[0], tuple):
                 chunk = list(self.queue) 
+                self.queue.clear()
             else:
                 raise ValueError("plc_data_model must be a tuple of tuples for MultiTimeSeries")
             times_list = np.array([int(r["timestamp"].timestamp() * 10**6) for r in chunk],  TSDataType.INT64.np_dtype())
@@ -163,7 +164,6 @@ class MultiTimeSeries(IoTTimeSeriesBase):
                 np.array([l[v] for l in chunk], self.ts_type_dict[v].np_dtype()) 
                 for i, v in measurements_list
             ]
-            self.queue.clear()
             tablet = NumpyTablet(
                 f"{self.storage_group_name}.{self.time_series_name}",
                 [v for i, v in measurements_list],
@@ -220,10 +220,10 @@ class SingleTimeSeries(IoTTimeSeriesBase):
                 raise ValueError("plc_data_model must be a single type for SingleTimeSeries")
             else:
                 chunk = list(self.queue)
+                self.queue.clear()
             times_list = np.array([int(r["timestamp"].timestamp() * 10**6) for r in chunk],  TSDataType.INT64.np_dtype())
             keys = [k for k in chunk[0] if k != "timestamp"]
             values_list = np.array([r[keys[0]] for r in chunk], self.ts_type_dict[self.time_series_name].np_dtype())
-            self.queue.clear()
             tablet = NumpyTablet(
                 f"{self.storage_group_name}",
                 [self.time_series_name],

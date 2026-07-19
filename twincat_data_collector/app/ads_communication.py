@@ -102,7 +102,7 @@ class AdsPortConnection:
     ams_net_id: str = field(default='127.0.0.1.1.1')
     ads_port: int = field(default=851)
     connection: pyads.Connection = field(default=None, init=False)
-    symbols: List[pyads.SymbolInfo] = field(default_factory=list, init=False)
+    symbols: list = field(default_factory=list, init=False)
     
 
     def __post_init__(self):

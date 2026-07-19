@@ -1,17 +1,20 @@
 import pyads
 import ctypes
 from dataclasses import dataclass, field
-from typing import List, Tuple, Callable, Union
+from typing import List, Tuple, Callable, TypeVar, Union
 from zoneinfo import ZoneInfo
 import asyncio
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 
+T = TypeVar('T', bound=Union[Tuple[Tuple], pyads.PLCTYPE_BOOL, pyads.PLCTYPE_BYTE, pyads.PLCTYPE_DWORD, pyads.PLCTYPE_INT, pyads.PLCTYPE_DINT, pyads.PLCTYPE_LINT, pyads.PLCTYPE_UDINT, pyads.PLCTYPE_ULINT, pyads.PLCTYPE_REAL, pyads.PLCTYPE_LREAL, pyads.PLCTYPE_STRING, pyads.PLCTYPE_WSTRING])
+
+
 @dataclass
 class AbstructAdsDeviceNotification(ABC):
     connection: pyads.Connection
     symbol: str
-    model: Union[pyads.PLCTYPE, Tuple[Tuple]]  # Accepts either a single type or a tuple of tuples for structured data
+    model: T
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     subscriber: Callable = field(default=None)
     cycle_time : int = field(default=1)
@@ -132,7 +135,7 @@ class AdsPortConnection:
             print(f"Details : {e}")
 
             
-    def reg_notification(self, symbol: str, model: type, cycle_time: int = 1, subscriber: Callable = None) -> AbstructAdsDeviceNotification:
+    def reg_notification(self, symbol: str, model: T, cycle_time: int = 1, subscriber: Callable = None) -> AbstructAdsDeviceNotification:
         if isinstance(model, tuple) and len(model) > 1 and isinstance(model[0], tuple):
             publisher = AdsDeviceNotificationStructure(
                     connection=self.connection,

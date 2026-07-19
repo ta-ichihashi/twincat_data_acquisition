@@ -91,7 +91,6 @@ class AdsDeviceNotificationPrimitive(AbstructAdsDeviceNotification):
     
     def default_subscriber(self, timestamp, value):
         value["timestamp"] = timestamp
-        print("***********************")
         self.queue.put_nowait(value)
 
 

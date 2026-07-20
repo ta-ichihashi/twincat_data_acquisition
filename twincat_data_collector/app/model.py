@@ -5,31 +5,27 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Union, TypeVar
 from ads_communication import AdsPortConnection
-from iotdb_utils import IoTTimeSeriesBase, IoTDBClientSession
+from iotdb_utils import IoTTimeSeriesBase
 import asyncio
 
 T = TypeVar('T', bound=Union[Tuple[Tuple], pyads.PLCTYPE_BOOL, pyads.PLCTYPE_BYTE, pyads.PLCTYPE_DWORD, pyads.PLCTYPE_INT, pyads.PLCTYPE_DINT, pyads.PLCTYPE_LINT, pyads.PLCTYPE_UDINT, pyads.PLCTYPE_ULINT, pyads.PLCTYPE_REAL, pyads.PLCTYPE_LREAL, pyads.PLCTYPE_STRING, pyads.PLCTYPE_WSTRING])
 
-
 @dataclass
-class IEventTask(ABC):
-    @abstractmethod
-    async def observable(self):
-        pass
-
-
-@dataclass
-class BaseEventTask(IEventTask):
+class EventTaskBase(ABC):
     """ADS Notification event handler abstruct class"""
     subscriber : AdsPortConnection
-    queue : asyncio.Queue = field(default=None)
-    mapping_model : T = field(default=None)
-    watch_symbol : str = field(default_factory=str)
+    mapping_model : T
+    watch_symbol : str
     reconnect : bool = field(default_factory=bool)
+    queue : asyncio.Queue = field(default=None)
 
     def __post_init__(self):
         publisher = self.subscriber.reg_notification(symbol=self.watch_symbol, model=self.mapping_model)
         self.queue = publisher.queue
+
+    @abstractmethod
+    async def observable(self):
+        pass
 
     async def observer_task(self):
         while True:
@@ -60,13 +56,9 @@ class BaseEventTask(IEventTask):
 
 
 @dataclass
-class IIoTDB(ABC):
-    time_series_manager : IoTTimeSeriesBase = field(init=True)
- 
-
-@dataclass
-class ConcreteEventRecord(BaseEventTask, IIoTDB):
-
+class IoTDBRecorder(EventTaskBase):
+    time_series_manager : IoTTimeSeriesBase = field(default=None, init=True)
+    
     """IoTDB recorder"""
     def __post_init__(self):
         super().__post_init__()

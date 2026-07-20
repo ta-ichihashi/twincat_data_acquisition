@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import asyncio
-from model import ConcreteEventRecord
+from model import IoTDBRecorder
 from plc_data_types import job_event_structure, axis_to_plc_structure
 from ads_communication import AdsPortConnection
 import os
@@ -10,8 +10,8 @@ import pyads
 
 @dataclass
 class TwinCATData:
-    motion_observer : ConcreteEventRecord = field(default = None)
-    job_observer    : ConcreteEventRecord = field(default = None)
+    motion_observer : IoTDBRecorder = field(default = None)
+    job_observer    : IoTDBRecorder = field(default = None)
 
     def __post_init__(self):
         ams_net_id = os.getenv('TARGET_AMSID', default='15.15.15.15.1.1')
@@ -50,20 +50,20 @@ class TwinCATData:
             )
         self.main_state_machine.create_aligned_time_series()
     async def data_collection_task(self):
-        self.motion_observer = ConcreteEventRecord(
+        self.motion_observer = IoTDBRecorder(
             subscriber=self.motion_connector,
             mapping_model=axis_to_plc_structure,
             watch_symbol='Axes.Axis 1.ToPlc',
             time_series_manager=self.motion_time_series
         )
 
-        self.job_observer = ConcreteEventRecord(
+        self.job_observer = IoTDBRecorder(
             subscriber=self.plc_connector,
             mapping_model=job_event_structure,
             watch_symbol='demo3.runner.event_message',
             time_series_manager=self.job_time_series
         )
-        self.main_state_machine_observer = ConcreteEventRecord(
+        self.main_state_machine_observer = IoTDBRecorder(
             subscriber=self.plc_connector,
             mapping_model=pyads.PLCTYPE_UINT,
             watch_symbol='demo3._state',

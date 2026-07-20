@@ -1,11 +1,10 @@
 import pyads
 import ctypes
 from dataclasses import dataclass, field
-from typing import List, Tuple, Callable, TypeVar, Union
+from typing import Tuple, Callable, TypeVar, Union
 from zoneinfo import ZoneInfo
 import asyncio
 from abc import ABC, abstractmethod
-from collections import OrderedDict
 
 T = TypeVar('T', bound=Union[Tuple[Tuple], pyads.PLCTYPE_BOOL, pyads.PLCTYPE_BYTE, pyads.PLCTYPE_DWORD, pyads.PLCTYPE_INT, pyads.PLCTYPE_DINT, pyads.PLCTYPE_LINT, pyads.PLCTYPE_UDINT, pyads.PLCTYPE_ULINT, pyads.PLCTYPE_REAL, pyads.PLCTYPE_LREAL, pyads.PLCTYPE_STRING, pyads.PLCTYPE_WSTRING])
 

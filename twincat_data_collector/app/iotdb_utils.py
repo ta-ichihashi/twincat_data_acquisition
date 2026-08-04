@@ -4,6 +4,7 @@ from iotdb.SessionPool import PoolConfig, SessionPool
 from iotdb.utils.IoTDBConstants import TSDataType, TSEncoding, Compressor
 from iotdb.utils.NumpyTablet import ColumnType, NumpyTablet
 from iotdb.utils.exception import StatementExecutionException, IoTDBConnectionException
+from error_handler import IoTDBConnectionError
 from dataclasses import dataclass, field
 from typing import Tuple, Union, TypeVar
 from abc import ABC, abstractmethod
@@ -85,7 +86,7 @@ class IoTTimeSeriesBase(ABC):
                 self.session_manager.session_pool.put_back(session)
             except IoTDBConnectionException as e:
                 print(f"Connection failed for {self.session_manager.host}:{self.session_manager.port}: {e}")
-                exit(1)
+                raise IoTDBConnectionError("Failed to connect to IoTDB") from e
         return wrapper
 
     @abstractmethod
@@ -125,7 +126,7 @@ class MultiTimeSeries(IoTTimeSeriesBase):
         except StatementExecutionException as e:
             pass
         except IoTDBConnectionException as e:
-            print(f"Connection fail {self.session_manager.host}, {self.session_manager.port}")
+            raise IoTDBConnectionError(f"Connection fail {self.session_manager.host}, {self.session_manager.port}") from e
 
     
     @IoTTimeSeriesBase.session
@@ -173,9 +174,8 @@ class MultiTimeSeries(IoTTimeSeriesBase):
             )
             session.insert_tablet(tablet)
         except Exception as e:
-            pprint(chunk)
-            raise(e)
-        
+            raise IoTDBConnectionError("Failed to insert data into IoTDB") from e
+
 
 class SingleTimeSeries(IoTTimeSeriesBase):
 
@@ -194,7 +194,7 @@ class SingleTimeSeries(IoTTimeSeriesBase):
         except StatementExecutionException as e:
             pass
         except IoTDBConnectionException as e:
-            print(f"Connection fail {self.session_manager.host}, {self.session_manager.port}")
+            raise IoTDBConnectionError(f"Connection fail {self.session_manager.host}, {self.session_manager.port}") from e
 
     @IoTTimeSeriesBase.session
     def create_aligned_time_series(self, session : Session):
@@ -231,8 +231,6 @@ class SingleTimeSeries(IoTTimeSeriesBase):
                 [values_list],
                 times_list
             )
-            print(f"Tablet: {self.ts_type_dict}, {self.measurements_list}, {len(times_list)}, {values_list}")
             session.insert_tablet(tablet)
         except Exception as e:
-            pprint(chunk)
-            raise(e)
+            raise IoTDBConnectionError("Failed to insert data into IoTDB") from e

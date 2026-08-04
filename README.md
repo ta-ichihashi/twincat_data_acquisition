@@ -101,13 +101,11 @@ docker-ce が動作する環境が必要です。クラウドやオンプレミ�
    |--|--|--|
    |ads_port_connection|AdsPortConnection|作成したAdsPortConnectionインスタンスをロード|
    |iotdb_session|IoTDBClientSession|IoTDBへのクライアントセッションインスタンスをロード|
-   |twincat_datatype|[Structures with multiple datatypes](https://pyads.readthedocs.io/en/latest/documentation/connection.html#structures-with-multiple-datatypes)で示されたtupleで定義された構造体定義、または、リテラル変数の場合は`pyads.PLC_TYPE****` のいずれか|対象の変数の型を定義|
+   |twincat_datatype|[Structures with multiple datatypes](https://pyads.readthedocs.io/en/latest/documentation/connection.html#structures-with-multiple-datatypes)の説明の`structure_def` の例のようなネストされたtupleで表現された構造体定義、または、プリミティブ型の場合は `pyads.PLC_TYPE****` のいずれか|対象の変数の型を定義|
    |twincat_symbol|str|変数のシンボルパス|
    |storage_group_name|str|IoTDBの[ストレージグループ設定](https://iotdb.apache.org/UserGuide/V0.13.x/Operate-Metadata/Storage-Group.html)|
    |time_series_name|str|IoTDBの[時系列定義](https://iotdb.apache.org/UserGuide/V0.13.x/Operate-Metadata/Timeseries.html)|
    |chunk_size|int|IoTDBに書き込みを行うチャンクのデータ数の最低値。ADS Notificationによって通知されたデータをバッファリングして最低この個数溜まってからIoTDBの時系列データのチャンクとして一括して書き込む|
-
-
 
 実装例は以下のとおりです。
     
@@ -161,6 +159,8 @@ except IoTDBConnectionError as e:
 
 ADSEventWatchTaskManager.task_run()
 ```
+
+上記により、`ADSEventWatchTaskManager.task_run()` によって登録されたタスクが実行されます。IoTDBにはツリーモードで `root.demo1.job.**` や、 `root.demo1.machine_state` や、 `root.demo1.axis1.axis1.**` に、時刻とペアとなる変数の値が時系列値としてデータが記録されます。（`**`の部分は構造体のメンバー名として記録されます）
 
 ### Dockerイメージのビルド
 

@@ -42,6 +42,8 @@ docker-ce が動作する環境が必要です。クラウドやオンプレミ�
 >
 > ![](assets/plc_visualization.png)
 
+> [!tip]
+> ジョブフレームワークではなく、お好きなTwinCATプロジェクトの任意の変数を記録する場合は、後述するPythonコードを修正してください。
 
 ### リポジトリの展開と設定
 
@@ -51,9 +53,9 @@ docker-ce が動作する環境が必要です。クラウドやオンプレミ�
 
     次のファイルを編集し、MyBeckhoffで作成したアカウントのメールアドレスとパスワードを設定します。
 
-    ``` bash
     twincat_data_collector/apt-config/bhf.conf
 
+    ``` 
     machine deb.beckhoff.com login <MyBeckhoffメールアドレス> password <MyBeckhoffパスワード>
     machine deb-mirror.beckhoff.com login <MyBeckhoffメールアドレス> password <MyBeckhoffパスワード>
     ```
@@ -79,6 +81,86 @@ docker-ce が動作する環境が必要です。クラウドやオンプレミ�
         - IOTDB_HOST=iotdb
         - PCI_DEVICES=NONE
     ```
+
+### Pythonコードの修正
+
+任意のTwinCATプロジェクト中のシンボル変数をデータベースに記録するには `twincat_data_collector/app/main.py` を修正します。
+
+* `AdsPortConnection` インスタンス
+
+    Target Browserにて一覧できる変数のうち、親項目であるADS port単位で、を作成します。
+
+* `IoTDBClientSession` インスタンス
+  
+   IoTDB クライアントセッションインスタンスはデフォルトのままにしてください。
+
+* 監視したい変数毎に`ADSEventWatchTaskManager.create_event_task()` の実装
+
+    次表の引数に従った引数を定義します。
+   |引数名|型|説明|
+   |--|--|--|
+   |ads_port_connection|AdsPortConnection|作成したAdsPortConnectionインスタンスをロード|
+   |iotdb_session|IoTDBClientSession|IoTDBへのクライアントセッションインスタンスをロード|
+   |twincat_datatype|[Structures with multiple datatypes](https://pyads.readthedocs.io/en/latest/documentation/connection.html#structures-with-multiple-datatypes)で示されたtupleで定義された構造体定義、または、リテラル変数の場合は`pyads.PLC_TYPE****` のいずれか|対象の変数の型を定義|
+   |twincat_symbol|str|変数のシンボルパス|
+   |storage_group_name|str|IoTDBの[ストレージグループ設定](https://iotdb.apache.org/UserGuide/V0.13.x/Operate-Metadata/Storage-Group.html)|
+   |time_series_name|str|IoTDBの[時系列定義](https://iotdb.apache.org/UserGuide/V0.13.x/Operate-Metadata/Timeseries.html)|
+   |chunk_size|int|IoTDBに書き込みを行うチャンクのデータ数の最低値。ADS Notificationによって通知されたデータをバッファリングして最低この個数溜まってからIoTDBの時系列データのチャンクとして一括して書き込む|
+
+
+
+実装例は以下のとおりです。
+    
+``` python
+
+try:
+
+    motion_connector = AdsPortConnection(ams_net_id='15.15.15.15.1.1',
+                                ads_port=501)
+    plc_connector = AdsPortConnection(ams_net_id='15.15.15.15.1.1',
+                                ads_port=851)
+
+    iotdb_session_manager = IoTDBClientSession(host='127.0.0.1')
+
+    ADSEventWatchTaskManager.create_event_task(
+        ads_port_connection=plc_connector,
+        iotdb_session=iotdb_session_manager,
+        twincat_datatype=job_event_structure,
+        twincat_symbol='demo3.runner.event_message',
+        storage_group_name="root.demo1",
+        time_series_name='job',
+        chunk_size=1
+    )
+
+    ADSEventWatchTaskManager.create_event_task(
+        ads_port_connection=plc_connector,
+        iotdb_session=iotdb_session_manager,
+        twincat_datatype=pyads.PLCTYPE_UINT,
+        twincat_symbol='demo3._state',
+        storage_group_name="root.demo1",
+        time_series_name='machine_state',
+        chunk_size=1
+    )
+
+    ADSEventWatchTaskManager.create_event_task(
+        ads_port_connection=motion_connector,
+        iotdb_session=iotdb_session_manager,
+        twincat_datatype=axis_to_plc_structure,
+        twincat_symbol='Axes.Axis 1.ToPlc',
+        storage_group_name="root.demo1",
+        time_series_name="axis1",
+        chunk_size=500
+    )
+except AdsConnectionError as e:
+    print(e)
+    exit(1)
+
+except IoTDBConnectionError as e:
+    print(e)
+    exit(1)
+
+ADSEventWatchTaskManager.task_run()
+```
 
 ### Dockerイメージのビルド
 

@@ -5,6 +5,7 @@ from typing import Tuple, Callable, TypeVar, Union
 from zoneinfo import ZoneInfo
 import asyncio
 from abc import ABC, abstractmethod
+from error_handler import AdsConnectionError
 
 T = TypeVar('T', bound=Union[Tuple[Tuple], pyads.PLCTYPE_BOOL, pyads.PLCTYPE_BYTE, pyads.PLCTYPE_DWORD, pyads.PLCTYPE_INT, pyads.PLCTYPE_DINT, pyads.PLCTYPE_LINT, pyads.PLCTYPE_UDINT, pyads.PLCTYPE_ULINT, pyads.PLCTYPE_REAL, pyads.PLCTYPE_LREAL, pyads.PLCTYPE_STRING, pyads.PLCTYPE_WSTRING])
 
@@ -36,7 +37,7 @@ class AbstructAdsDeviceNotification(ABC):
             self.create_notification()
             self.state = True
         except pyads.pyads_ex.ADSError as e:
-            print(f"Symbol not found: {self.symbol}: {e}")
+            raise AdsConnectionError(f"Symbol not found: {self.symbol}: {e}") from e
             self.state = False
 
 
@@ -126,13 +127,11 @@ class AdsPortConnection:
             
             
                         
-        except pyads.pyads_ex.ADSError:
-            print("Failed to open ADS connection. router: {self.router_address}, target : {self.ams_net_id}, target port : {self.ads_port}")
+        except pyads.pyads_ex.ADSError as e:
+            raise AdsConnectionError(f"Failed to open ADS connection. target : {self.ams_net_id}, target port : {self.ads_port}") from e
               
         except RuntimeError as e:
-            print(f"No route to machine. Check your network configuration. router: {self.router_address}, target : {self.ams_net_id}, target port : {self.ads_port}")
-            print(f"Details : {e}")
-
+            raise AdsConnectionError(f"No route to machine. Check your network configuration. router: {self.router_address}, target : {self.ams_net_id}, target port : {self.ads_port}") from e
             
     def reg_notification(self, symbol: str, model: T, cycle_time: int = 1, subscriber: Callable = None) -> AbstructAdsDeviceNotification:
         if isinstance(model, tuple) and len(model) > 1 and isinstance(model[0], tuple):

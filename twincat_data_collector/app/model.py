@@ -1,11 +1,12 @@
 import pyads
+from error_handler import AdsConnectionError
 from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo
 from datetime import datetime
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Union, TypeVar
 from ads_communication import AdsPortConnection
-from iotdb_utils import IoTTimeSeriesBase
+from iotdb_utils import IoTTimeSeriesBase, SingleTimeSeries, MultiTimeSeries, IoTDBClientSession
 import asyncio
 
 T = TypeVar('T', bound=Union[Tuple[Tuple], pyads.PLCTYPE_BOOL, pyads.PLCTYPE_BYTE, pyads.PLCTYPE_DWORD, pyads.PLCTYPE_INT, pyads.PLCTYPE_DINT, pyads.PLCTYPE_LINT, pyads.PLCTYPE_UDINT, pyads.PLCTYPE_ULINT, pyads.PLCTYPE_REAL, pyads.PLCTYPE_LREAL, pyads.PLCTYPE_STRING, pyads.PLCTYPE_WSTRING])
@@ -24,35 +25,35 @@ class EventTaskBase(ABC):
         self.queue = publisher.queue
 
     @abstractmethod
-    async def observable(self):
+    async def observer(self):
         pass
 
     async def observer_task(self):
         while True:
-            if await self.observable():
+            if await self.observer():
                 self.reconnect = False
 
     async def alive_check_task(self):
-       while True:
-           if self.reconnect:
-                print(f"{self.watch_symbol} : Connection lost. Attempting to reconnect...")
-                self.subscriber.port_close()
-                await asyncio.sleep(1)  # Wait before trying to reconnect
-                self.subscriber.port_open()
-           try:
-               if self.subscriber.connection.is_open:
+        while True:
+            try:
+                if self.reconnect:
+                    print(f"{self.watch_symbol} : Connection lost. Attempting to reconnect...")
+                    self.subscriber.port_close()
+                    await asyncio.sleep(1)  # Wait before trying to reconnect
+                    self.subscriber.port_open()
+                if self.subscriber.connection.is_open:
                     module_state = self.subscriber.connection.read_state()
                     print(f"Port {self.subscriber.ads_port} : ADS State {module_state[0]}, Device state : {module_state[1]}")
                     if (module_state[0] != 5 or module_state[1] != 0):
                         print(f"{self.watch_symbol} : Watch Dog Error")
                         self.reconnect = True
-               else:
-                   print(f"{self.watch_symbol} : Could not open.")
-                   self.reconnect = True
-           except pyads.pyads_ex.ADSError as e:
-               print(f"{self.watch_symbol} : ADSError : {e}")
-               self.reconnect = True
-           await asyncio.sleep(10)  # Check every 10 seconds
+                else:
+                    print(f"{self.watch_symbol} : Could not open.")
+                    self.reconnect = True
+            except (pyads.pyads_ex.ADSError, AdsConnectionError) as e:
+                print(f"{self.watch_symbol} : ADSError : {e}")
+                self.reconnect = True
+            await asyncio.sleep(10)  # Check every 10 seconds
 
 
 @dataclass
@@ -63,7 +64,7 @@ class IoTDBRecorder(EventTaskBase):
     def __post_init__(self):
         super().__post_init__()
 
-    async def observable(self):
+    async def observer(self):
         data_count = 0
         while not self.queue.empty():
             data_count += 1

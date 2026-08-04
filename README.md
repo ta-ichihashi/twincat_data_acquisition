@@ -88,11 +88,11 @@ docker-ce が動作する環境が必要です。クラウドやオンプレミ�
 
 * `AdsPortConnection` インスタンス
 
-    Target Browserにて一覧できる変数のうち、親項目であるADS port単位で、を作成します。
+    Target Browserにて一覧できる変数のうち、親項目であるADS port単位でインスタンスを作成します。例えばPLCであればPort 851, NC PTPであれば Port 501などです。
 
 * `IoTDBClientSession` インスタンス
   
-   IoTDB クライアントセッションインスタンスはデフォルトのままにしてください。
+   IoTDB クライアントセッションインスタンスを一つ用意します。`host`, `port`, `username`, `password` を引数に与えて接続先のIPアドレスを設定したインスタンスを作成してください。本手順のコンテナ運用では、`host` はコンテナ間通信におけるIoTDBコンテナのホスト名である`iotdb` となっており `port`, `username`, `password` はデフォルトのまま変更する必要はありません。
 
 * 監視したい変数毎に`ADSEventWatchTaskManager.create_event_task()` の実装
 
@@ -111,14 +111,15 @@ docker-ce が動作する環境が必要です。クラウドやオンプレミ�
     
 ``` python
 
-try:
+ams_net_id = os.getenv('TARGET_AMSID', default='15.15.15.15.1.1')
 
-    motion_connector = AdsPortConnection(ams_net_id='15.15.15.15.1.1',
+try:
+    motion_connector = AdsPortConnection(ams_net_id=ams_net_id,
                                 ads_port=501)
-    plc_connector = AdsPortConnection(ams_net_id='15.15.15.15.1.1',
+    plc_connector = AdsPortConnection(ams_net_id=ams_net_id,
                                 ads_port=851)
 
-    iotdb_session_manager = IoTDBClientSession(host='127.0.0.1')
+    iotdb_session_manager = IoTDBClientSession(host=os.getenv('IOTDB_HOST', default='127.0.0.1'))
 
     ADSEventWatchTaskManager.create_event_task(
         ads_port_connection=plc_connector,
